@@ -8,26 +8,53 @@ namespace Diff
     public static class Program
     {
         private static List<ulong> ExceptedLines = new List<ulong>();
+        private static double TotalOriginal;
+        private static double TotalTranslated;
 
         private static void Main(string[] args)
         {
-            ExceptedLines = File.ReadAllLines("exceptions.txt").Select(ulong.Parse).ToList();
-            Console.WriteLine(GetPercentageDiff(args[0], args[1], out var notes));
-            File.WriteAllLines("notes.txt", notes);
-            File.WriteAllLines("exceptions.txt", ExceptedLines.OrderBy(x => x).Select(x =>
+            if (args.Length % 4 != 0 || args.Length <= 0)
             {
-                var num = x;
-                return num.ToString();
-            }));
+                throw new Exception();
+            }
+
+            var i = 0;
+            while (i < args.Length)
+            {
+                var name = args[i++];
+                var folder = args[i++];
+                var edited = string.Format(args[i++], folder);
+                var original = string.Format(args[i++], folder);
+
+                if (!File.Exists(edited) || !File.Exists(original))
+                {
+                    Console.WriteLine($"{name} was not found.");
+                    continue;
+                }
+
+                ExceptedLines = File.Exists(Path.Combine(folder, "exceptions.txt"))
+                    ? File.ReadAllLines(Path.Combine(folder, "exceptions.txt")).Select(ulong.Parse).ToList()
+                    : new List<ulong>();
+                Console.Write($"{name}: ");
+                GetPercentageDiff(edited, original, out var notes);
+                File.WriteAllLines(Path.Combine(folder, "notes.txt"), notes);
+                File.WriteAllLines(Path.Combine(folder, "exceptions.txt"),
+                    ExceptedLines.OrderBy(x => x).Select(x => x.ToString()));
+            }
+
+            Console.WriteLine($"Total: {TotalTranslated / TotalOriginal:P} ({TotalTranslated}/{TotalOriginal})");
+
+            #if DEBUG
+            Console.ReadKey();
+            #endif
         }
 
-        private static double GetPercentageDiff(string file1Path, string file2Path, out string[] notes)
+        private static void GetPercentageDiff(string file1Path, string file2Path, out string[] notes)
         {
-            return GetPercentageDiff(File.ReadAllLines(file1Path), File.ReadAllLines(file2Path), out notes);
+            GetPercentageDiff(File.ReadAllLines(file1Path), File.ReadAllLines(file2Path), out notes);
         }
 
-        // Token: 0x06000003 RID: 3 RVA: 0x0000229C File Offset: 0x0000049C
-        private static double GetPercentageDiff(string[] file1Content, string[] file2Content, out string[] notes)
+        private static void GetPercentageDiff(string[] file1Content, string[] file2Content, out string[] notes)
         {
             var list = new List<string>();
             var totalLength = 0.0;
@@ -68,7 +95,9 @@ namespace Diff
                 }
             }
             notes = list.ToArray();
-            return changedLength / totalLength;
+            TotalTranslated += changedLength;
+            TotalOriginal += totalLength;
+            Console.WriteLine($"{changedLength / totalLength:P} ({changedLength}/{totalLength})");
         }
 
         private static string ConvertToString(params string[] strs)
